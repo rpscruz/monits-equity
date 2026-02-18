@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoring Dashboard</title>
+    <!-- Importing Outfit for a premium, friendly geometric look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            font-family: 'Outfit', sans-serif;
+        }
+
+        /* Tier Colors */
+        .q1-bg { background-color: #fffafa; border-left: 5px solid #ef4444; } 
+        .q2-bg { background-color: #fffdf5; border-left: 5px solid #eab308; } 
+        .q4-bg { background-color: #f0fdf4; border-left: 5px solid #22c55e; } 
+        .q8-bg { background-color: #eff6ff; border-left: 5px solid #3b82f6; } 
+        
+        .q1-dot { color: #ef4444; }
+        .q2-dot { color: #eab308; }
+        .q4-dot { color: #22c55e; }
+        .q8-dot { color: #3b82f6; }
+
+        /* Layout scroll containers */
+        .sidebar-scroll { height: calc(100vh - 350px); overflow-y: auto; padding-right: 8px; }
+        
+        .main-scroll-container { 
+            height: calc(100vh - 180px); 
+            overflow-y: auto; 
+            padding-right: 12px;
+            scroll-behavior: smooth;
+        }
+        
+        .modal-overlay {
+            background-color: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(8px);
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        h1, h2, h3, h4 { letter-spacing: -0.01em; }
+        
+        .data-mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            letter-spacing: -0.02em;
+        }
+
+        select option {
+            background-color: white;
+            color: #0f172a;
+        }
+
+        .location-section {
+            display: flex;
+            flex-direction: column;
+            height: auto;
+            margin-bottom: 2rem;
+        }
+    </style>
+</head>
+<body class="bg-white min-h-screen text-slate-900 overflow-hidden">
+
+    <!-- SETUP VIEW -->
+    <div id="setup-view" class="fixed inset-0 bg-white z-[100] flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white border border-slate-100 rounded-[2.5rem] w-full max-w-4xl p-10 shadow-2xl my-auto">
+            <div class="text-center mb-10">
+                <div class="inline-flex items-center justify-center w-16 h-16 bg-slate-50 rounded-3xl mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-slate-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                </div>
+                <h1 class="text-4xl font-extrabold text-slate-900 tracking-tight">System Setup</h1>
+                <p class="text-slate-500 font-medium text-lg">Initialize team names and monitoring list</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div class="space-y-4">
+                    <label class="block">
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">1. Team Names</span>
+                        <textarea id="setup-clinterns" rows="10" class="w-full border border-slate-200 bg-slate-50/50 rounded-3xl p-5 data-mono text-sm focus:ring-8 focus:ring-slate-100 focus:border-slate-400 outline-none transition mt-2" placeholder="JUAN DELA CRUZ&#10;MARIA CLARA">JUAN DELA CRUZ&#10;MARIA CLARA&#10;JOSE RIZAL&#10;ANDRES BONIFACIO</textarea>
+                    </label>
+                </div>
+
+                <div class="space-y-4">
+                    <label class="block">
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">2. Monitoring List</span>
+                        <textarea id="setup-patients" rows="10" class="w-full border border-slate-200 bg-slate-50/50 rounded-3xl p-5 data-mono text-sm focus:ring-8 focus:ring-slate-100 focus:border-slate-400 outline-none transition mt-2" placeholder="Paste the list from the chat here..."></textarea>
+                    </label>
+                </div>
+            </div>
+
+            <div class="mt-10 flex justify-center">
+                <button onclick="initializeSystem()" class="bg-slate-900 hover:bg-black text-white px-20 py-5 rounded-[1.5rem] font-bold text-xl shadow-2xl shadow-slate-200 hover:-translate-y-1 transition-all active:scale-95">
+                    Launch Dashboard
+                </button>
+            </div>
+            <div id="setup-error" class="mt-4 text-center text-rose-500 font-semibold hidden"></div>
+        </div>
+    </div>
+
+    <!-- LIST MODAL -->
+    <div id="list-modal" class="fixed inset-0 z-[110] hidden flex items-center justify-center p-4">
+        <div class="modal-overlay absolute inset-0" onclick="closeModal()"></div>
+        <div class="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl relative z-10 flex flex-col max-h-[85vh] border border-slate-100">
+            <div class="p-8 border-b border-slate-50 flex justify-between items-center">
+                <div>
+                    <h2 id="modal-title" class="text-3xl font-bold text-slate-900 tracking-tight">Assignments</h2>
+                    <p id="modal-subtitle" class="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1"></p>
+                </div>
+                <button onclick="closeModal()" class="text-slate-300 hover:text-slate-900 transition-colors p-3 rounded-2xl hover:bg-slate-50">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <div id="modal-content" class="p-8 overflow-y-auto data-mono text-[13px] whitespace-pre-wrap flex-1 bg-white leading-relaxed text-slate-700"></div>
+            <div class="p-8 border-t border-slate-50 bg-white">
+                <button onclick="copyModalContent()" class="w-full bg-slate-900 hover:bg-black text-white py-4 rounded-2xl font-bold transition shadow-xl shadow-slate-100">
+                    Copy Assignment
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD VIEW -->
+    <div id="dashboard-view" class="flex h-screen hidden opacity-0 transition-opacity duration-700">
+        
+        <aside class="w-80 bg-white border-r border-slate-100 p-8 flex flex-col shrink-0 overflow-hidden">
+            <div class="mb-6 flex items-center justify-between">
+                <h2 class="text-[11px] font-bold text-slate-300 uppercase tracking-[0.25em]">Equity Tracker</h2>
+                <span class="text-[10px] bg-slate-50 text-slate-500 px-3 py-1 rounded-full font-bold uppercase tracking-tight">Active</span>
+            </div>
+            
+            <div id="clintern-list" class="space-y-4 sidebar-scroll flex-1"></div>
+            
+            <div class="mt-6 pt-6 border-t border-slate-100 space-y-4">
+                <button onclick="autoDeck()" class="w-full bg-slate-900 hover:bg-black text-white py-4 rounded-2xl font-bold transition text-sm shadow-xl shadow-slate-100 flex items-center justify-center gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
+                    </svg>
+                    Auto-Deck
+                </button>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="showSetup()" class="bg-white border border-slate-100 hover:bg-slate-50 text-slate-600 py-3 rounded-xl font-bold transition text-[10px] uppercase tracking-wider">Config</button>
+                    <button onclick="clearAll()" class="bg-white border border-slate-100 hover:bg-slate-50 text-slate-400 py-3 rounded-xl font-bold transition text-[10px] uppercase tracking-wider">Reset</button>
+                </div>
+            </div>
+        </aside>
+
+        <main class="flex-1 p-8 md:p-12 overflow-hidden flex flex-col bg-slate-50/30">
+            <header class="mb-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shrink-0">
+                <div>
+                    <h1 class="text-4xl font-black text-slate-900 tracking-tight">Monitoring</h1>
+                    <p id="current-date" class="text-slate-400 font-semibold text-sm mt-1"></p>
+                </div>
+                <div class="flex gap-1 p-1.5 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                    <span class="px-3 py-1.5 rounded-xl flex items-center gap-2 text-[11px] font-bold text-slate-500">
+                        <span class="w-2 h-2 rounded-full bg-red-500"></span> Q1
+                    </span>
+                    <span class="px-3 py-1.5 rounded-xl flex items-center gap-2 text-[11px] font-bold text-slate-500">
+                        <span class="w-2 h-2 rounded-full bg-yellow-500"></span> Q2
+                    </span>
+                    <span class="px-3 py-1.5 rounded-xl flex items-center gap-2 text-[11px] font-bold text-slate-500">
+                        <span class="w-2 h-2 rounded-full bg-green-500"></span> Q4
+                    </span>
+                    <span class="px-3 py-1.5 rounded-xl flex items-center gap-2 text-[11px] font-bold text-slate-500">
+                        <span class="w-2 h-2 rounded-full bg-blue-500"></span> Q8
+                    </span>
+                </div>
+            </header>
+
+            <div class="main-scroll-container">
+                <div id="monitoring-grid" class="grid grid-cols-1 xl:grid-cols-2 gap-8 pb-10"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let clinterns = [];
+        let patients = [];
+
+        const clinternColors = ['#6366f1', '#ec4899', '#8b5cf6', '#06b6d4', '#f97316', '#14b8a6', '#f43f5e', '#10b981', '#64748b', '#a855f7'];
+
+        const initializeSystem = () => {
+            const clinternText = document.getElementById('setup-clinterns').value.trim();
+            const patientText = document.getElementById('setup-patients').value.trim();
+            const errorEl = document.getElementById('setup-error');
+
+            if (!clinternText) {
+                errorEl.innerText = "Team names are required.";
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            clinterns = clinternText.split(/[\n,]+/).map(n => n.trim()).filter(n => n)
+                .map((name, index) => ({ 
+                    name: name.toUpperCase(), 
+                    equity: 0, 
+                    count: 0, 
+                    color: clinternColors[index % clinternColors.length] 
+                }));
+
+            patients = [];
+            const lines = patientText.split('\n');
+            let currentLocation = "🏥 General";
+
+            lines.forEach(line => {
+                let raw = line.trim();
+                if (!raw || raw.startsWith('...')) return;
+
+                if (raw.includes('🏥')) {
+                    currentLocation = raw.replace(/🏥/g, '').replace(/[-*]/g, '').trim();
+                    currentLocation = '🏥 ' + currentLocation;
+                    return;
+                }
+
+                const statusMap = { '🔴': '1', '🟡': '2', '🟢': '4', '🔵': '8' };
+                let tier = null;
+                let tierIdx = Infinity;
+                for (const [emoji, val] of Object.entries(statusMap)) {
+                    const idx = raw.indexOf(emoji);
+                    if (idx !== -1 && idx < tierIdx) {
+                        tierIdx = idx;
+                        tier = val;
+                    }
+                }
+
+                if (tier) {
+                    // Extract the content after the emoji
+                    let workingStr = raw.substring(tierIdx + 2).trim();
+                    
+                    // Remove the redundant status number (1, 2, 4, or 8) if it follows the emoji
+                    // Match a single digit followed by space or end of string, but only if it matches the tier value
+                    const statusNumberPattern = new RegExp(`^${tier}\\s+`);
+                    workingStr = workingStr.replace(statusNumberPattern, '').trim();
+                    
+                    // Also clean any "Q1", "Q2" prefixes just in case
+                    workingStr = workingStr.replace(/^[qQ]\d+\s+/, '').trim();
+
+                    // Extract Bed ID (11, 1-1, etc.)
+                    const idMatch = workingStr.match(/(\d{1,2}-\d{1,2})|(\d{1,3})(?=\s|$|[^a-zA-Z0-9])/);
+                    let bedId = "??";
+                    let content = workingStr;
+
+                    if (idMatch) {
+                        bedId = idMatch[0].trim();
+                        content = workingStr.substring(workingStr.indexOf(bedId) + bedId.length).trim();
+                    }
+
+                    patients.push({ 
+                        tier, 
+                        id: bedId, 
+                        fullContent: content, 
+                        loc: currentLocation, 
+                        assigned: "" 
+                    });
+                }
+            });
+
+            if (patients.length === 0) {
+                errorEl.innerText = "No patients detected. Ensure lines contain 🔴, 🟡, 🟢, or 🔵.";
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            document.getElementById('setup-view').classList.add('hidden');
+            const dashboard = document.getElementById('dashboard-view');
+            dashboard.classList.remove('hidden');
+            setTimeout(() => dashboard.classList.add('opacity-100'), 50);
+            render();
+        };
+
+        const getPatientEquity = (p) => {
+            const base = { '1': 4, '2': 3, '4': 2, '8': 1 }[p.tier] || 0;
+            let bonus = 0;
+            const n = p.fullContent.toUpperCase();
+            
+            if (n.includes('🚨')) bonus += 1.5;
+            if (n.includes('⚠️')) bonus += 1.0;
+            if (n.includes('🦠')) bonus += 1.0;
+            if (n.includes('WOF')) bonus += 0.8;
+            if (n.includes('MAINTAINING')) bonus += 0.6;
+            if (n.includes('NVS')) bonus += 0.7;
+            if (n.includes('HYPOTENSION')) bonus += 1.0;
+            if (n.includes('VSQ1')) bonus += 0.5;
+            if (n.includes('INTUBATED') || n.includes('VENTILATOR')) bonus += 1.2;
+            if (n.length > 40) bonus += 0.4;
+            
+            return base + bonus;
+        };
+
+        const getTierEmoji = (tier) => ({ '1': '🔴', '2': '🟡', '4': '🟢', '8': '🔵' }[tier] || '⚪');
+
+        const autoDeck = () => {
+            const currentWeights = clinterns.reduce((acc, c) => { acc[c.name] = 0; return acc; }, {});
+            
+            patients.forEach(p => {
+                if (p.assigned) {
+                    currentWeights[p.assigned] += getPatientEquity(p);
+                }
+            });
+
+            const unassigned = patients.filter(p => !p.assigned)
+                .sort((a, b) => getPatientEquity(b) - getPatientEquity(a));
+
+            unassigned.forEach((p) => {
+                let bestIntern = null;
+                let minWeight = Infinity;
+                
+                clinterns.forEach(c => {
+                    if (currentWeights[c.name] < minWeight) {
+                        minWeight = currentWeights[c.name];
+                        bestIntern = c.name;
+                    }
+                });
+                
+                p.assigned = bestIntern;
+                currentWeights[bestIntern] += getPatientEquity(p);
+            });
+            
+            render();
+        };
+
+        const render = () => {
+            const grid = document.getElementById('monitoring-grid');
+            const cList = document.getElementById('clintern-list');
+            grid.innerHTML = '';
+            clinterns.forEach(c => { c.equity = 0; c.count = 0; });
+            
+            const locations = [...new Set(patients.map(p => p.loc))];
+            locations.forEach(loc => {
+                const locPatients = patients.filter(p => p.loc === loc);
+                const section = document.createElement('div');
+                section.className = "location-section bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden";
+                
+                let pRows = locPatients.map((p) => {
+                    let c = clinterns.find(cl => cl.name === p.assigned);
+                    const equityWeight = getPatientEquity(p);
+                    if (c) { c.equity += equityWeight; c.count++; }
+                    
+                    return `
+                        <div class="p-4 border-b border-slate-50 flex items-start gap-4 q${p.tier}-bg w-full">
+                            <span class="font-black text-[10px] q${p.tier}-dot w-8 text-center shrink-0 pt-1">Q${p.tier}</span>
+                            <span class="data-mono text-[11px] w-14 text-slate-400 font-bold shrink-0 pt-1 border-r border-slate-50 mr-2">${p.id}</span>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex justify-between items-start gap-4">
+                                    <h4 class="font-bold text-[13px] text-slate-900 break-words flex-1 pr-2">${p.fullContent}</h4>
+                                    <select 
+                                        onchange="assignPatient(${patients.indexOf(p)}, this.value)" 
+                                        style="border-color: ${c ? c.color : '#f1f5f9'}; color: ${c ? c.color : '#94a3b8'}"
+                                        class="text-[9px] bg-white border-2 rounded-lg px-1.5 py-0.5 font-bold outline-none cursor-pointer transition-colors shrink-0"
+                                    >
+                                        <option value="">Unassigned</option>
+                                        ${clinterns.map(cl => `<option value="${cl.name}" ${p.assigned === cl.name ? 'selected' : ''}>${cl.name}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="flex gap-2 mt-2">
+                                    <span class="text-[8px] font-bold text-slate-300 uppercase tracking-tighter">Equity: ${equityWeight.toFixed(1)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                section.innerHTML = `
+                    <div class="bg-slate-50 px-6 py-3 border-b border-slate-100 font-bold text-slate-400 flex justify-between items-center text-[9px] uppercase tracking-widest">
+                        <span>${loc}</span>
+                        <span class="bg-white px-2 py-0.5 rounded text-slate-400 border border-slate-100">${locPatients.length}</span>
+                    </div>
+                    <div class="flex flex-col w-full">${pRows}</div>
+                `;
+                grid.appendChild(section);
+            });
+
+            const sorted = [...clinterns].sort((a,b) => b.equity - a.equity);
+            cList.innerHTML = sorted.map(c => `
+                <div class="bg-white p-5 rounded-[1.5rem] border-2 flex flex-col gap-4 shadow-sm" style="border-color: ${c.color}15">
+                    <div class="flex justify-between items-center">
+                        <span class="font-bold text-xs truncate pr-2" style="color: ${c.color}">${c.name}</span>
+                        <div class="flex items-center gap-3">
+                            <div class="flex flex-col items-end">
+                                <span class="text-[8px] font-bold text-slate-300 uppercase tracking-widest">Census</span>
+                                <span class="text-sm font-black data-mono text-slate-400 leading-none">${c.count}</span>
+                            </div>
+                            <div class="w-px h-5 bg-slate-100"></div>
+                            <div class="flex flex-col items-end">
+                                <span class="text-[8px] font-bold text-slate-300 uppercase tracking-widest">Equity</span>
+                                <span class="text-xl font-black data-mono leading-none" style="color: ${c.color}">${c.equity.toFixed(1)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="showClinternList('${c.name}')" style="background-color: ${c.color}08; color: ${c.color}; border-color: ${c.color}20" class="w-full text-[9px] py-2.5 rounded-xl font-bold uppercase tracking-widest border transition-all hover:brightness-95">View List</button>
+                </div>
+            `).join('');
+            document.getElementById('current-date').innerText = new Date().toLocaleString();
+        };
+
+        const showSetup = () => { document.getElementById('setup-view').classList.remove('hidden'); };
+        const clearAll = () => { if(confirm("Reset all?")) { patients.forEach(p => p.assigned = ""); render(); } };
+        const closeModal = () => document.getElementById('list-modal').classList.add('hidden');
+        
+        const showClinternList = (name) => {
+            const list = patients.filter(p => p.assigned === name);
+            const sortedList = [...list].sort((a, b) => {
+                const locCompare = a.loc.localeCompare(b.loc);
+                if (locCompare !== 0) return locCompare;
+                return parseInt(a.tier) - parseInt(b.tier);
+            });
+
+            document.getElementById('modal-title').innerText = name;
+            document.getElementById('modal-subtitle').innerText = `${list.length} Patients`;
+            
+            let text = "";
+            let currentLoc = "";
+            
+            sortedList.forEach((p, idx) => {
+                if (p.loc !== currentLoc) {
+                    currentLoc = p.loc;
+                    text += (idx === 0 ? "" : "\n") + `${currentLoc}\n`;
+                }
+                
+                // Final cleanup for content
+                const cleanedContent = p.fullContent.replace(/^[qQ]\d+\s*/, '').trim();
+                text += `${getTierEmoji(p.tier)} ${p.id} ${cleanedContent}\n`;
+            });
+
+            document.getElementById('modal-content').innerText = text.trim() || "No patients assigned.";
+            document.getElementById('list-modal').classList.remove('hidden');
+        };
+
+        const copyModalContent = () => {
+            const content = document.getElementById('modal-content').innerText;
+            const el = document.createElement('textarea');
+            el.value = content;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+            const btn = event.currentTarget; btn.innerText = "✅ Copied";
+            setTimeout(() => btn.innerText = "Copy Assignment", 2000);
+        };
+        const assignPatient = (index, val) => { patients[index].assigned = val; render(); };
+    </script>
+</body>
+</html>
