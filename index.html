@@ -231,31 +231,55 @@
                 }
 
                 if (tier) {
-                    // Extract the content after the emoji
                     let workingStr = raw.substring(tierIdx + 2).trim();
                     
-                    // Remove the redundant status number (1, 2, 4, or 8) if it follows the emoji
-                    // Match a single digit followed by space or end of string, but only if it matches the tier value
+                    // 1. Remove redundant status number (1, 2, 4, or 8) immediately following emoji
                     const statusNumberPattern = new RegExp(`^${tier}\\s+`);
                     workingStr = workingStr.replace(statusNumberPattern, '').trim();
                     
-                    // Also clean any "Q1", "Q2" prefixes just in case
+                    // 2. Clear any "Q1", "Q2" text fragments
                     workingStr = workingStr.replace(/^[qQ]\d+\s+/, '').trim();
 
-                    // Extract Bed ID (11, 1-1, etc.)
-                    const idMatch = workingStr.match(/(\d{1,2}-\d{1,2})|(\d{1,3})(?=\s|$|[^a-zA-Z0-9])/);
+                    // 3. Extract Bed ID
+                    const idMatch = workingStr.match(/^(\d{1,2}-\d{1,2})|(\d{1,3})/);
                     let bedId = "??";
-                    let content = workingStr;
+                    let contentRemaining = workingStr;
 
                     if (idMatch) {
                         bedId = idMatch[0].trim();
-                        content = workingStr.substring(workingStr.indexOf(bedId) + bedId.length).trim();
+                        contentRemaining = workingStr.substring(idMatch[0].length).trim();
+                    }
+
+                    // 4. Extract Name vs Description
+                    // Look for the first sequence of Uppercase letters (The Surname)
+                    // We assume names are usually at least 3 letters and uppercase
+                    const nameMatch = contentRemaining.match(/([A-Z]{3,})/);
+                    let displayName = contentRemaining;
+                    let description = "";
+
+                    if (nameMatch) {
+                        const nameIndex = contentRemaining.indexOf(nameMatch[0]);
+                        // The primary display is everything from that name onwards
+                        displayName = contentRemaining.substring(nameIndex).trim();
+                        
+                        // If there's a significant break or comma, split to description
+                        // Most monitoring lists use spacing or specific keywords to separate name from notes
+                        const splitPoints = ["  ", " - ", " – ", " — ", ", "];
+                        for (let sp of splitPoints) {
+                            if (displayName.includes(sp)) {
+                                const parts = displayName.split(sp);
+                                displayName = parts[0].trim();
+                                description = parts.slice(1).join(sp).trim();
+                                break;
+                            }
+                        }
                     }
 
                     patients.push({ 
                         tier, 
                         id: bedId, 
-                        fullContent: content, 
+                        fullContent: displayName,
+                        description: description,
                         loc: currentLocation, 
                         assigned: "" 
                     });
@@ -278,7 +302,7 @@
         const getPatientEquity = (p) => {
             const base = { '1': 4, '2': 3, '4': 2, '8': 1 }[p.tier] || 0;
             let bonus = 0;
-            const n = p.fullContent.toUpperCase();
+            const n = (p.fullContent + " " + p.description).toUpperCase();
             
             if (n.includes('🚨')) bonus += 1.5;
             if (n.includes('⚠️')) bonus += 1.0;
@@ -289,7 +313,7 @@
             if (n.includes('HYPOTENSION')) bonus += 1.0;
             if (n.includes('VSQ1')) bonus += 0.5;
             if (n.includes('INTUBATED') || n.includes('VENTILATOR')) bonus += 1.2;
-            if (n.length > 40) bonus += 0.4;
+            if (n.length > 50) bonus += 0.4;
             
             return base + bonus;
         };
@@ -349,7 +373,10 @@
                             <span class="data-mono text-[11px] w-14 text-slate-400 font-bold shrink-0 pt-1 border-r border-slate-50 mr-2">${p.id}</span>
                             <div class="flex-1 min-w-0">
                                 <div class="flex justify-between items-start gap-4">
-                                    <h4 class="font-bold text-[13px] text-slate-900 break-words flex-1 pr-2">${p.fullContent}</h4>
+                                    <div class="flex-1 pr-2">
+                                        <h4 class="font-bold text-[14px] text-slate-900 break-words">${p.fullContent}</h4>
+                                        ${p.description ? `<p class="text-[11px] text-slate-500 font-medium mt-0.5">${p.description}</p>` : ''}
+                                    </div>
                                     <select 
                                         onchange="assignPatient(${patients.indexOf(p)}, this.value)" 
                                         style="border-color: ${c ? c.color : '#f1f5f9'}; color: ${c ? c.color : '#94a3b8'}"
@@ -424,9 +451,10 @@
                     text += (idx === 0 ? "" : "\n") + `${currentLoc}\n`;
                 }
                 
-                // Final cleanup for content
-                const cleanedContent = p.fullContent.replace(/^[qQ]\d+\s*/, '').trim();
-                text += `${getTierEmoji(p.tier)} ${p.id} ${cleanedContent}\n`;
+                let lineContent = p.fullContent;
+                if (p.description) lineContent += ` - ${p.description}`;
+                
+                text += `${getTierEmoji(p.tier)} ${p.id} ${lineContent}\n`;
             });
 
             document.getElementById('modal-content').innerText = text.trim() || "No patients assigned.";
